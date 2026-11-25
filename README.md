@@ -66,7 +66,7 @@ On Windows, activate the environment with:
 The dependencies are declared in `requirements.txt`:
 
 ```text
-Torch>=2.1,<3
+torch>=2.1,<3
 transformers>=4.41,<6
 Pillow>=10,<13
 pytest>=8,<10
