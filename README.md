@@ -193,6 +193,32 @@ CANDIDATE_LABELS = ["cat", "dog", "bird"]
 
 The example calls `CLIPImageClassifier.classify_image()` and prints the ranked labels and scores.
 
+## Run the Sample Demo
+
+From the project root, run the bundled sample-image demo:
+
+```bash
+python examples/demo.py
+```
+
+The demo uses CPU execution and classifies four bundled sample images representing a cat, dog, car, and bird. It prints the top prediction and a complete ranking for each image.
+
+Example output format:
+
+```text
+cat.jpg
+Top prediction: cat (0.2627)
+Ranked candidates:
+  1. cat: 0.2627
+  2. dog: 0.2523
+  3. bird: 0.2462
+  4. car: 0.2387
+```
+
+The displayed softmax scores are relative to the supplied candidate labels, not calibrated probabilities.
+
+The sample image sources and licences are documented in `examples/sample_images/SOURCES.md`.
+
 ## Project structure
 
 ```text
@@ -204,6 +230,7 @@ clip-image-classification/
 │   ├── image_utils.py
 │   └── text_utils.py
 ├── examples/
+│   ├── demo.py
 │   ├── sample_usage.py
 │   └── .gitkeep
 ├── tests/
@@ -226,6 +253,7 @@ clip-image-classification/
 - `cli.py`: argument parsing and terminal output
 - `main.py`: thin root entry point
 - `examples/sample_usage.py`: public-API usage example
+- `examples/demo.py`: sample-image demo script
 - `tests/`: unit tests using mocked CLIP components where appropriate
 
 ## Running tests

@@ -1,5 +1,6 @@
 """Unit tests for CLIP model initialization."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -141,8 +142,7 @@ def test_encode_image_generates_embedding(
         "pixel_values": torch.ones(1, 3, 224, 224)
     }
     model_instance = mock_clip_model.from_pretrained.return_value
-    expected = torch.ones(1, 512)
-    model_instance.get_image_features.return_value = expected
+    model_instance.get_image_features.return_value = torch.ones(1, 512)
 
     classifier = CLIPImageClassifier()
     with patch("clip_classifier.classifier.torch.inference_mode") as mock_inference_mode:
@@ -153,7 +153,7 @@ def test_encode_image_generates_embedding(
     mock_load_rgb_image.assert_called_once_with("image.jpg")
     processor_instance.assert_called_once_with(images=mock_image, return_tensors="pt")
     model_instance.get_image_features.assert_called_once()
-    assert result is expected
+    assert result is model_instance.get_image_features.return_value
 
 
 @patch("clip_classifier.classifier.prepare_text_prompts")
@@ -171,8 +171,7 @@ def test_encode_text_generates_embedding(
         "attention_mask": torch.ones(1, 8, dtype=torch.long),
     }
     model_instance = mock_clip_model.from_pretrained.return_value
-    expected = torch.ones(1, 512)
-    model_instance.get_text_features.return_value = expected
+    model_instance.get_text_features.return_value = torch.ones(1, 512)
 
     classifier = CLIPImageClassifier()
     with patch("clip_classifier.classifier.torch.inference_mode") as mock_inference_mode:
@@ -185,7 +184,7 @@ def test_encode_text_generates_embedding(
         text=["a photo of a cat"], padding=True, return_tensors="pt"
     )
     model_instance.get_text_features.assert_called_once()
-    assert result is expected
+    assert result is model_instance.get_text_features.return_value
 
 
 @patch("clip_classifier.classifier.prepare_text_prompts", return_value=["a photo of a cat"])
@@ -207,6 +206,9 @@ def test_processor_inputs_are_moved_to_configured_device(
         {"pixel_values": pixel_values},
         {"input_ids": input_ids, "attention_mask": attention_mask},
     ]
+    model_instance = mock_clip_model.from_pretrained.return_value
+    model_instance.get_image_features.return_value = torch.ones(1, 512)
+    model_instance.get_text_features.return_value = torch.ones(1, 512)
 
     classifier = CLIPImageClassifier()
     classifier.encode_image("image.jpg")
@@ -636,3 +638,55 @@ def test_classify_image_propagates_text_encoding_error(
 
     with pytest.raises(CLIPProcessingError, match="Could not encode text prompts"):
         classifier.classify_image("image.jpg", ["cat", "dog"])
+
+
+@patch("clip_classifier.classifier.load_rgb_image")
+@patch("clip_classifier.classifier.CLIPModel")
+@patch("clip_classifier.classifier.AutoProcessor")
+def test_encode_image_extracts_pooler_output_tensor(
+    mock_processor: MagicMock,
+    mock_clip_model: MagicMock,
+    mock_load_rgb_image: MagicMock,
+) -> None:
+    processor_instance = mock_processor.from_pretrained.return_value
+    processor_instance.return_value = {
+        "pixel_values": torch.ones(1, 3, 224, 224)
+    }
+    expected = torch.ones(1, 512)
+    model_instance = mock_clip_model.from_pretrained.return_value
+    model_instance.get_image_features.return_value = SimpleNamespace(
+        pooler_output=expected
+    )
+
+    result = CLIPImageClassifier().encode_image("image.jpg")
+
+    assert isinstance(result, torch.Tensor)
+    assert result.shape == (1, 512)
+    assert result is expected
+
+
+@patch("clip_classifier.classifier.prepare_text_prompts")
+@patch("clip_classifier.classifier.CLIPModel")
+@patch("clip_classifier.classifier.AutoProcessor")
+def test_encode_text_extracts_pooler_output_tensor(
+    mock_processor: MagicMock,
+    mock_clip_model: MagicMock,
+    mock_prepare_text_prompts: MagicMock,
+) -> None:
+    mock_prepare_text_prompts.return_value = ["a photo of a cat", "a photo of a dog"]
+    processor_instance = mock_processor.from_pretrained.return_value
+    processor_instance.return_value = {
+        "input_ids": torch.ones(2, 8, dtype=torch.long),
+        "attention_mask": torch.ones(2, 8, dtype=torch.long),
+    }
+    expected = torch.ones(2, 512)
+    model_instance = mock_clip_model.from_pretrained.return_value
+    model_instance.get_text_features.return_value = SimpleNamespace(
+        pooler_output=expected
+    )
+
+    result = CLIPImageClassifier().encode_text(["cat", "dog"])
+
+    assert isinstance(result, torch.Tensor)
+    assert result.shape == (2, 512)
+    assert result is expected

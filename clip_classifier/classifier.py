@@ -138,10 +138,10 @@ class CLIPImageClassifier:
             inputs = self._move_inputs_to_device(inputs)
 
             with torch.inference_mode():
-                embeddings = self.model.get_image_features(
+                output = self.model.get_image_features(
                     pixel_values=inputs["pixel_values"]
                 )
-            return embeddings
+            return self._extract_feature_tensor(output)
         except Exception as exc:
             raise CLIPProcessingError(
                 f"Could not encode image '{image_path}'"
@@ -173,13 +173,13 @@ class CLIPImageClassifier:
             inputs = self._move_inputs_to_device(inputs)
 
             with torch.inference_mode():
-                embeddings = self.model.get_text_features(
+                output = self.model.get_text_features(
                     input_ids=inputs["input_ids"],
                     attention_mask=inputs.get("attention_mask")
                     if hasattr(inputs, "get")
                     else None,
                 )
-            return embeddings
+            return self._extract_feature_tensor(output)
         except Exception as exc:
             raise CLIPProcessingError("Could not encode text prompts") from exc
 
@@ -349,3 +349,19 @@ class CLIPImageClassifier:
             text_embeddings,
         )
         return self.rank_labels(similarity_scores, candidate_labels)
+
+    def _extract_feature_tensor(self, output: object) -> torch.Tensor:
+        """Extract a tensor from direct or container-style feature output."""
+        if isinstance(output, torch.Tensor):
+            return output
+
+        pooler_output = getattr(output, "pooler_output", None)
+        if isinstance(pooler_output, torch.Tensor):
+            return pooler_output
+
+        if isinstance(output, dict):
+            pooler_output = output.get("pooler_output")
+            if isinstance(pooler_output, torch.Tensor):
+                return pooler_output
+
+        raise CLIPProcessingError("Unsupported model output format")
